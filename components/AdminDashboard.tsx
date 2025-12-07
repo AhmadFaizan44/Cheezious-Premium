@@ -1,18 +1,21 @@
+
 import React, { useState } from 'react';
 import { ADMIN_KEY } from '../constants';
-import { MenuItem, Order, SectionType } from '../types';
+import { MenuItem, Order, SectionType, VideoItem } from '../types';
 
 interface AdminDashboardProps {
   menuItems: MenuItem[];
   setMenuItems: React.Dispatch<React.SetStateAction<MenuItem[]>>;
   orders: Order[];
   setOrders: React.Dispatch<React.SetStateAction<Order[]>>;
+  videos: VideoItem[];
+  setVideos: React.Dispatch<React.SetStateAction<VideoItem[]>>;
 }
 
-const AdminDashboard: React.FC<AdminDashboardProps> = ({ menuItems, setMenuItems, orders, setOrders }) => {
+const AdminDashboard: React.FC<AdminDashboardProps> = ({ menuItems, setMenuItems, orders, setOrders, videos, setVideos }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [password, setPassword] = useState('');
-  const [activeTab, setActiveTab] = useState<'menu' | 'orders'>('orders');
+  const [activeTab, setActiveTab] = useState<'menu' | 'orders' | 'media'>('orders');
 
   // Form State for new Item
   const [newItem, setNewItem] = useState<Partial<MenuItem>>({
@@ -21,6 +24,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ menuItems, setMenuItems
     price: '',
     description: '',
     imageUrl: ''
+  });
+
+  // Form State for new Video
+  const [newVideo, setNewVideo] = useState<Partial<VideoItem>>({
+    title: '',
+    videoUrl: '',
+    thumbnailUrl: ''
   });
 
   const handleLogin = (e: React.FormEvent) => {
@@ -51,9 +61,31 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ menuItems, setMenuItems
     alert('Item Added!');
   };
 
+  const handleAddVideo = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newVideo.title || !newVideo.videoUrl) return;
+
+    const video: VideoItem = {
+      id: `vid-${Date.now()}`,
+      title: newVideo.title,
+      videoUrl: newVideo.videoUrl,
+      thumbnailUrl: newVideo.thumbnailUrl || 'https://image.pollinations.ai/prompt/video%20placeholder?nologo=true'
+    };
+
+    setVideos(prev => [...prev, video]);
+    setNewVideo({ title: '', videoUrl: '', thumbnailUrl: '' });
+    alert('Video Added!');
+  };
+
   const handleDeleteItem = (id: string) => {
     if (confirm('Are you sure you want to delete this item?')) {
       setMenuItems(prev => prev.filter(item => item.id !== id));
+    }
+  };
+  
+  const handleDeleteVideo = (id: string) => {
+    if (confirm('Are you sure you want to delete this video?')) {
+      setVideos(prev => prev.filter(v => v.id !== id));
     }
   };
 
@@ -89,21 +121,27 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ menuItems, setMenuItems
     <div className="min-h-screen bg-brand-dark text-brand-cream">
       {/* Admin Header */}
       <header className="bg-black/50 border-b border-gray-800 p-6 sticky top-0 z-30 backdrop-blur-md">
-        <div className="max-w-7xl mx-auto flex justify-between items-center">
+        <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
           <div className="flex items-center gap-4">
              <h1 className="text-2xl font-bold text-brand-yellow">Cheezious Admin</h1>
-             <div className="flex bg-gray-900 rounded-lg p-1">
+             <div className="flex bg-gray-900 rounded-lg p-1 overflow-x-auto max-w-[200px] md:max-w-none">
                <button 
                  onClick={() => setActiveTab('orders')}
                  className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${activeTab === 'orders' ? 'bg-brand-yellow text-black' : 'text-gray-400 hover:text-white'}`}
                >
-                 Orders ({orders.length})
+                 Orders
                </button>
                <button 
                  onClick={() => setActiveTab('menu')}
                  className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${activeTab === 'menu' ? 'bg-brand-yellow text-black' : 'text-gray-400 hover:text-white'}`}
                >
-                 Menu Items
+                 Menu
+               </button>
+               <button 
+                 onClick={() => setActiveTab('media')}
+                 className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${activeTab === 'media' ? 'bg-brand-yellow text-black' : 'text-gray-400 hover:text-white'}`}
+               >
+                 Media
                </button>
              </div>
           </div>
@@ -254,6 +292,77 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ menuItems, setMenuItems
                    </tbody>
                  </table>
                </div>
+            </div>
+          </div>
+        )}
+
+        {/* MEDIA CENTER TAB */}
+        {activeTab === 'media' && (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-fade-in">
+             {/* Upload Form */}
+             <div className="lg:col-span-1">
+              <div className="bg-white/5 border border-white/10 rounded-lg p-6 sticky top-24">
+                <h3 className="text-xl font-bold mb-4 text-brand-yellow">Upload Video</h3>
+                <form onSubmit={handleAddVideo} className="space-y-4">
+                  <div>
+                    <label className="block text-xs uppercase text-gray-500 mb-1">Video Title</label>
+                    <input 
+                      type="text" 
+                      value={newVideo.title}
+                      onChange={e => setNewVideo({...newVideo, title: e.target.value})}
+                      className="w-full bg-black border border-gray-700 rounded p-2 text-white"
+                      placeholder="e.g. Making of Crown Crust"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs uppercase text-gray-500 mb-1">Video URL (mp4/hosted)</label>
+                    <input 
+                      type="text" 
+                      value={newVideo.videoUrl}
+                      onChange={e => setNewVideo({...newVideo, videoUrl: e.target.value})}
+                      className="w-full bg-black border border-gray-700 rounded p-2 text-white"
+                      placeholder="https://..."
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs uppercase text-gray-500 mb-1">Thumbnail URL</label>
+                    <input 
+                      type="text" 
+                      value={newVideo.thumbnailUrl}
+                      onChange={e => setNewVideo({...newVideo, thumbnailUrl: e.target.value})}
+                      className="w-full bg-black border border-gray-700 rounded p-2 text-white"
+                      placeholder="https://..."
+                    />
+                  </div>
+                  <button type="submit" className="w-full bg-brand-yellow text-brand-dark font-bold py-3 rounded hover:bg-yellow-400 transition">
+                    Add Video
+                  </button>
+                </form>
+              </div>
+            </div>
+
+            {/* Video List */}
+            <div className="lg:col-span-2 space-y-4">
+              <h3 className="text-xl font-bold mb-4 text-brand-yellow">Uploaded Videos ({videos.length})</h3>
+              <div className="grid gap-4">
+                {videos.map(video => (
+                  <div key={video.id} className="bg-white/5 border border-white/10 p-4 rounded-lg flex gap-4 items-center">
+                    <div className="w-32 aspect-video bg-black rounded overflow-hidden">
+                      <img src={video.thumbnailUrl} alt="" className="w-full h-full object-cover opacity-70" />
+                    </div>
+                    <div className="flex-1">
+                      <h4 className="font-bold text-brand-cream">{video.title}</h4>
+                      <p className="text-xs text-gray-500 truncate">{video.videoUrl}</p>
+                    </div>
+                    <button 
+                       onClick={() => handleDeleteVideo(video.id)}
+                       className="text-red-500 hover:text-red-400 text-xs uppercase font-bold hover:underline px-4"
+                     >
+                       Delete
+                     </button>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         )}

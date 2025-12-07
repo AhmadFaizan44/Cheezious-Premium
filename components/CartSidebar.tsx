@@ -1,5 +1,6 @@
+
 import React, { useMemo } from 'react';
-import { CartItem, Order } from '../types';
+import { CartItem } from '../types';
 
 interface CartSidebarProps {
   isOpen: boolean;
@@ -7,7 +8,7 @@ interface CartSidebarProps {
   cartItems: CartItem[];
   onUpdateQuantity: (id: string, delta: number) => void;
   onRemoveItem: (id: string) => void;
-  onCheckout: (order: Order) => void;
+  onCheckoutClick: () => void;
 }
 
 const CartSidebar: React.FC<CartSidebarProps> = ({ 
@@ -16,25 +17,11 @@ const CartSidebar: React.FC<CartSidebarProps> = ({
   cartItems, 
   onUpdateQuantity, 
   onRemoveItem,
-  onCheckout 
+  onCheckoutClick 
 }) => {
   const total = useMemo(() => {
     return cartItems.reduce((acc, item) => acc + (item.selectedPrice * item.quantity), 0);
   }, [cartItems]);
-
-  const handleCheckout = () => {
-    if (cartItems.length === 0) return;
-
-    const newOrder: Order = {
-      id: `ORD-${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`,
-      date: new Date().toLocaleString(),
-      items: [...cartItems],
-      total: total,
-      status: 'pending'
-    };
-
-    onCheckout(newOrder);
-  };
 
   return (
     <>
@@ -68,17 +55,28 @@ const CartSidebar: React.FC<CartSidebarProps> = ({
               <button onClick={onClose} className="text-brand-yellow hover:underline">Start Ordering</button>
             </div>
           ) : (
-            cartItems.map((item) => (
-              <div key={item.id} className="flex gap-4 bg-white/5 p-4 rounded-lg border border-white/5">
+            cartItems.map((item, idx) => (
+              <div key={`${item.id}-${idx}`} className="flex gap-4 bg-white/5 p-4 rounded-lg border border-white/5">
                 <div className="w-20 h-20 rounded-md overflow-hidden flex-shrink-0">
                   <img src={item.imageUrl} alt={item.name} className="w-full h-full object-cover" />
                 </div>
                 <div className="flex-1 flex flex-col justify-between">
-                  <div className="flex justify-between items-start">
-                    <h4 className="font-bold text-brand-cream text-sm leading-tight">{item.name}</h4>
-                    <span className="text-brand-yellow font-bold text-sm ml-2">Rs. {item.selectedPrice * item.quantity}</span>
+                  <div>
+                    <div className="flex justify-between items-start">
+                      <h4 className="font-bold text-brand-cream text-sm leading-tight">{item.name}</h4>
+                      <span className="text-brand-yellow font-bold text-sm ml-2">Rs. {item.selectedPrice * item.quantity}</span>
+                    </div>
+                    {/* Customization Details */}
+                    <div className="text-xs text-gray-400 mt-1 space-y-0.5">
+                      {item.selectedSize && <p>Size: <span className="text-gray-300">{item.selectedSize}</span></p>}
+                      {item.selectedCrust && <p>Crust: <span className="text-gray-300">{item.selectedCrust}</span></p>}
+                      {item.selectedExtras && item.selectedExtras.length > 0 && (
+                        <p>Extras: <span className="text-gray-300">{item.selectedExtras.join(', ')}</span></p>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex justify-between items-center mt-2">
+
+                  <div className="flex justify-between items-center mt-3">
                     <div className="flex items-center bg-black rounded-full border border-gray-700">
                       <button 
                         onClick={() => onUpdateQuantity(item.id, -1)}
@@ -115,10 +113,10 @@ const CartSidebar: React.FC<CartSidebarProps> = ({
               <span className="text-2xl font-bold text-brand-yellow">Rs. {total}</span>
             </div>
             <button 
-              onClick={handleCheckout}
+              onClick={onCheckoutClick}
               className="w-full bg-brand-yellow text-brand-dark font-bold py-4 rounded-lg hover:bg-yellow-400 transition-all transform active:scale-95 shadow-lg"
             >
-              Checkout Now
+              Proceed to Checkout
             </button>
           </div>
         )}

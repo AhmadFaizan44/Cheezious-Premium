@@ -9,9 +9,25 @@ export interface MenuItem {
   imageUrl: string;
 }
 
+export type Size = 'Small' | 'Regular' | 'Large';
+export type Crust = 'Pan' | 'Thin' | 'Stuffed';
+
 export interface CartItem extends MenuItem {
   quantity: number;
   selectedPrice: number; // Normalized price for calculation
+  selectedSize?: Size;
+  selectedCrust?: Crust;
+  selectedExtras?: string[];
+}
+
+export type OrderStatus = 'pending' | 'kitchen' | 'delivery' | 'doorstep' | 'completed';
+
+export interface DeliveryDetails {
+  name: string;
+  phone: string;
+  address: string;
+  paymentMethod: 'cod' | 'card';
+  coordinates?: { lat: number; lng: number };
 }
 
 export interface Order {
@@ -19,7 +35,15 @@ export interface Order {
   date: string;
   items: CartItem[];
   total: number;
-  status: 'pending' | 'completed';
+  status: OrderStatus;
+  deliveryDetails?: DeliveryDetails;
+}
+
+export interface VideoItem {
+  id: string;
+  title: string;
+  videoUrl: string;
+  thumbnailUrl: string;
 }
 
 export enum SectionType {

@@ -1,12 +1,17 @@
-import React, { useState, useEffect } from 'react';
-import { SectionType, MenuItem, CartItem, Order } from './types';
-import { MENU_ITEMS, ADMIN_ROUTE } from './constants';
+
+import React, { useState, useEffect, useMemo } from 'react';
+import { SectionType, MenuItem, CartItem, Order, DeliveryDetails, VideoItem } from './types';
+import { MENU_ITEMS, ADMIN_ROUTE, INITIAL_VIDEOS } from './constants';
 import MenuSection from './components/MenuSection';
 import Loader from './components/Loader';
 import AdminDashboard from './components/AdminDashboard';
 import GeminiTools from './components/GeminiTools';
 import CartSidebar from './components/CartSidebar';
 import PizzaHero from './components/PizzaHero';
+import ProductCustomizer from './components/ProductCustomizer';
+import CheckoutModal from './components/CheckoutModal';
+import OrderTracker from './components/OrderTracker';
+import VideoGallery from './components/VideoGallery';
 
 const App: React.FC = () => {
   const [loading, setLoading] = useState(true);
@@ -15,24 +20,32 @@ const App: React.FC = () => {
   // Lifted State for Global Access
   const [menuItems, setMenuItems] = useState<MenuItem[]>(MENU_ITEMS);
   const [orders, setOrders] = useState<Order[]>([]);
+  const [videos, setVideos] = useState<VideoItem[]>(INITIAL_VIDEOS);
   
-  // Cart State
+  // Tabs State (Includes Sections + Videos)
+  const [activeTab, setActiveTab] = useState<string>(SectionType.PIZZAS);
+  
+  // Cart & Order State
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
+  
+  // New Features State
+  const [favorites, setFavorites] = useState<Set<string>>(new Set());
+  const [customizingItem, setCustomizingItem] = useState<MenuItem | null>(null);
+  const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
+  const [activeOrder, setActiveOrder] = useState<Order | null>(null);
 
   useEffect(() => {
-    // Initial hook animation timer
     const timer = setTimeout(() => {
       setLoading(false);
     }, 2500);
 
-    // Simple Hash routing check
     const handleHashChange = () => {
       const hash = window.location.hash.replace('#/', '');
       setIsAdminRoute(hash === ADMIN_ROUTE);
     };
 
-    handleHashChange(); // Check on mount
+    handleHashChange(); 
     window.addEventListener('hashchange', handleHashChange);
 
     return () => {
@@ -41,23 +54,45 @@ const App: React.FC = () => {
     };
   }, []);
 
-  const handleAddToCart = (item: MenuItem) => {
-    // Parse price if it's a string, defaulting to the first number found
-    let price = 0;
-    if (typeof item.price === 'number') {
-      price = item.price;
-    } else {
-      const match = item.price.toString().match(/(\d+)/);
-      price = match ? parseInt(match[0]) : 0;
-    }
+  // Simulate Order Progress
+  useEffect(() => {
+    if (activeOrder && activeOrder.status !== 'completed') {
+      const sequence: Order['status'][] = ['kitchen', 'delivery', 'doorstep', 'completed'];
+      let idx = sequence.indexOf(activeOrder.status);
+      
+      const interval = setInterval(() => {
+        idx++;
+        if (idx < sequence.length) {
+          const nextStatus = sequence[idx];
+          setActiveOrder(prev => prev ? { ...prev, status: nextStatus } : null);
+          setOrders(prevOrders => 
+            prevOrders.map(o => o.id === activeOrder.id ? { ...o, status: nextStatus } : o)
+          );
+        } else {
+          clearInterval(interval);
+        }
+      }, 5000); // Advance status every 5 seconds for demo
 
-    setCartItems(prev => {
-      const existing = prev.find(i => i.id === item.id);
-      if (existing) {
-        return prev.map(i => i.id === item.id ? { ...i, quantity: i.quantity + 1 } : i);
-      }
-      return [...prev, { ...item, quantity: 1, selectedPrice: price }];
+      return () => clearInterval(interval);
+    }
+  }, [activeOrder?.id]);
+
+  const toggleFavorite = (id: string) => {
+    setFavorites(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
     });
+  };
+
+  const handleOpenCustomizer = (item: MenuItem) => {
+    setCustomizingItem(item);
+  };
+
+  const handleAddToCart = (item: CartItem) => {
+    setCartItems(prev => [...prev, item]);
+    setCustomizingItem(null);
     setIsCartOpen(true);
   };
 
@@ -77,16 +112,30 @@ const App: React.FC = () => {
     setCartItems(prev => prev.filter(item => item.id !== id));
   };
 
-  const handlePlaceOrder = (newOrder: Order) => {
+  const cartTotal = useMemo(() => {
+    return cartItems.reduce((acc, item) => acc + (item.selectedPrice * item.quantity), 0);
+  }, [cartItems]);
+
+  const handleCheckoutSubmit = (details: DeliveryDetails) => {
+    const newOrder: Order = {
+      id: `ORD-${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`,
+      date: new Date().toLocaleString(),
+      items: [...cartItems],
+      total: cartTotal,
+      status: 'kitchen',
+      deliveryDetails: details
+    };
+
     setOrders(prev => [newOrder, ...prev]);
     setCartItems([]);
+    setIsCheckoutOpen(false);
     setIsCartOpen(false);
-    alert(`Order Placed Successfully! Order ID: ${newOrder.id}`);
+    setActiveOrder(newOrder);
+    alert('Order Placed! Track your food live.');
   };
 
   if (loading) return <Loader />;
 
-  // Render Admin Dashboard if route matches
   if (isAdminRoute) {
     return (
       <AdminDashboard 
@@ -94,36 +143,28 @@ const App: React.FC = () => {
         setMenuItems={setMenuItems}
         orders={orders}
         setOrders={setOrders}
+        videos={videos}
+        setVideos={setVideos}
       />
     );
   }
 
-  // Main Public Interface
+  // Define Tabs (Sections + Videos)
+  const navTabs = [...Object.values(SectionType), 'VIDEOS'];
+
   return (
-    <div className="min-h-screen relative">
-      {/* Sticky Header */}
-      <header className="fixed top-0 w-full z-40 bg-brand-dark/95 backdrop-blur-md border-b border-white/10 transition-all duration-300 shadow-xl">
+    <div className="min-h-screen relative flex flex-col">
+      <header className="fixed top-0 w-full z-40 bg-brand-dark/95 backdrop-blur-md border-b border-white/10 shadow-xl">
         <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 cursor-pointer" onClick={() => setActiveTab(SectionType.PIZZAS)}>
             <span className="text-2xl">🍕</span>
             <span className="text-xl font-serif tracking-widest text-brand-yellow font-bold">CHEEZIOUS</span>
           </div>
-          <nav className="hidden md:flex gap-6 text-sm uppercase tracking-widest text-gray-300">
-            {Object.values(SectionType).map((section) => (
-              <a 
-                key={section} 
-                href={`#${section}`}
-                className="hover:text-brand-yellow transition-colors"
-                onClick={(e) => {
-                  e.preventDefault();
-                  document.getElementById(section)?.scrollIntoView({ behavior: 'smooth' });
-                }}
-              >
-                {section}
-              </a>
-            ))}
-          </nav>
-          <div className="flex gap-4">
+          
+          <div className="flex gap-4 items-center">
+             {favorites.size > 0 && (
+               <span className="text-red-500">❤️ {favorites.size}</span>
+             )}
              <button 
                onClick={() => setIsCartOpen(true)}
                className="relative bg-brand-yellow text-brand-dark px-6 py-2 rounded-full font-bold hover:bg-yellow-400 transition transform hover:scale-105 flex items-center gap-2"
@@ -137,60 +178,91 @@ const App: React.FC = () => {
              </button>
           </div>
         </div>
+        
+        {/* Tab Navigation Bar */}
+        <div className="border-t border-white/5 bg-black/40 overflow-x-auto">
+          <div className="max-w-7xl mx-auto px-6 flex">
+            {navTabs.map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                className={`px-6 py-4 text-sm font-bold uppercase tracking-widest whitespace-nowrap transition-colors border-b-2 ${
+                  activeTab === tab 
+                  ? 'border-brand-yellow text-brand-yellow bg-white/5' 
+                  : 'border-transparent text-gray-400 hover:text-white hover:bg-white/5'
+                }`}
+              >
+                {tab}
+              </button>
+            ))}
+          </div>
+        </div>
       </header>
 
-      {/* Cart Sidebar */}
+      {/* Main Content Area */}
+      <main className="flex-1 pt-32 pb-20">
+        
+        {/* Render Logic based on Active Tab */}
+        {activeTab === 'VIDEOS' ? (
+          <VideoGallery videos={videos} />
+        ) : activeTab === SectionType.PIZZAS ? (
+           <>
+             {/* Show Hero only on Pizza Tab */}
+             <PizzaHero />
+             <MenuSection 
+               id={SectionType.PIZZAS}
+               title="Our Pizzas"
+               items={menuItems.filter(i => i.category === SectionType.PIZZAS)}
+               onAddToCart={handleOpenCustomizer}
+               favorites={favorites}
+               onToggleFavorite={toggleFavorite}
+             />
+           </>
+        ) : (
+          <MenuSection 
+             id={activeTab}
+             title={activeTab}
+             items={menuItems.filter(i => i.category === activeTab)}
+             onAddToCart={handleOpenCustomizer}
+             favorites={favorites}
+             onToggleFavorite={toggleFavorite}
+           />
+        )}
+        
+        {/* Show Gemini Tools at bottom of all sections */}
+        <GeminiTools />
+      </main>
+
+      {/* Overlays & Modals */}
       <CartSidebar 
         isOpen={isCartOpen}
         onClose={() => setIsCartOpen(false)}
         cartItems={cartItems}
         onUpdateQuantity={handleUpdateQuantity}
         onRemoveItem={handleRemoveItem}
-        onCheckout={handlePlaceOrder}
+        onCheckoutClick={() => setIsCheckoutOpen(true)}
       />
 
-      {/* New Pizza Hero Section */}
-      <PizzaHero />
+      <ProductCustomizer 
+        item={customizingItem}
+        isOpen={!!customizingItem}
+        onClose={() => setCustomizingItem(null)}
+        onAddToCart={handleAddToCart}
+      />
 
-      {/* AI Features Section - Only Search now */}
-      <GeminiTools />
+      <CheckoutModal 
+        isOpen={isCheckoutOpen}
+        onClose={() => setIsCheckoutOpen(false)}
+        cartTotal={cartTotal}
+        onSubmit={handleCheckoutSubmit}
+      />
 
-      {/* Menu Sections - mapped from state */}
-      <div className="relative">
-        {Object.values(SectionType).map((sectionType, index) => {
-           const items = menuItems.filter(i => i.category === sectionType);
-           if (items.length === 0) return null;
-           
-           return (
-            <React.Fragment key={sectionType}>
-              <MenuSection 
-                id={sectionType} 
-                title={sectionType} 
-                items={items} 
-                onAddToCart={handleAddToCart}
-              />
-              {/* Add parallax break after every 2 sections or specific logic */}
-              {index === 1 && (
-                 <div className="h-64 relative flex items-center justify-center bg-fixed bg-cover bg-center" style={{backgroundImage: 'url("https://image.pollinations.ai/prompt/cheezious%20fresh%20ingredients%20vegetables%20dough?width=1920&height=600&nologo=true")'}}>
-                  <div className="absolute inset-0 bg-black/60"></div>
-                  <h3 className="relative z-10 text-4xl font-serif text-brand-cream italic">"Baked to Perfection"</h3>
-                </div>
-              )}
-            </React.Fragment>
-           );
-        })}
-      </div>
+      <OrderTracker order={activeOrder} />
 
-      {/* Footer */}
       <footer className="bg-black py-12 border-t border-gray-800">
         <div className="max-w-7xl mx-auto px-6 text-center">
           <h2 className="text-3xl font-serif text-brand-yellow mb-4">CHEEZIOUS</h2>
           <p className="text-gray-500 mb-8">Taste the excellence in every slice.</p>
-          <div className="flex justify-center gap-6 text-gray-400 text-sm">
-            <a href="#" className="hover:text-white">Privacy Policy</a>
-            <a href="#" className="hover:text-white">Terms of Service</a>
-            <a href="#" className="hover:text-white">Contact Us</a>
-          </div>
           <p className="mt-8 text-gray-600 text-xs">&copy; 2025 Cheezious Restaurant. All rights reserved.</p>
         </div>
       </footer>
