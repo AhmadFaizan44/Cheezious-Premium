@@ -1,0 +1,8 @@
+{
+  "name": "Cheezious Premium",
+  "description": "A premium full-stack style restaurant application with parallax effects, secure admin dashboard, and Gemini-powered creative tools.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
